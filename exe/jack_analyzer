@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+
+require 'jack_analyzer'
+JackAnalyzer.main
