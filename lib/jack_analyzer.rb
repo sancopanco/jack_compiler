@@ -1,6 +1,7 @@
 require_relative 'jack_analyzer/token_type'
 require_relative 'jack_analyzer/token'
 require_relative 'jack_analyzer/tokenizer'
+require_relative 'jack_analyzer/xml_builder'
 
 # The main JackAnalyzer driver
 module JackAnalyzer
@@ -31,6 +32,6 @@ module JackAnalyzer
   def self.run(content)
     tokenizer = JackAnalyzer::Tokenizer.new(content)
     tokens = tokenizer.tokenize
-    puts tokens
+    puts XmlBuilder.to_xml(tokens)
   end
 end

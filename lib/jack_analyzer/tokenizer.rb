@@ -67,10 +67,14 @@ module JackAnalyzer
       new_token(TokenType::INT_CONST, integer_literal)
     end
 
+    # Comment or slash
+    # /* Standart comment */
+    # /** API comment */
     def comment
       if lookahead == '/'
         next_char
         next_char while lookahead != "\n" && !at_end?
+        return
       elsif lookahead == '*'
         if lookahead(1) == '*'
           next_char
@@ -80,8 +84,9 @@ module JackAnalyzer
         next_char while lookahead != '*'
         next_char # *
         next_char # /
+        return
       end
-      nil
+      symbol
     end
 
     def new_line
