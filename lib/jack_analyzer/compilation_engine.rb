@@ -114,13 +114,20 @@ module JackAnalyzer
     # | doStatement | returnStatement
     #
     def compile_statement
-      compile_let_statement if check?(TokenType::LET)
+      # output << '<statement>'
+      return compile_let_statement if check?(TokenType::LET)
+      return compile_while_statement if check?(TokenType::WHILE)
+      return compile_do_statement if check?(TokenType::DO)
+      return compile_return_statement if check?(TokenType::RETURN)
+      # output << '</statement>'
     end
 
+    #
     # letStatement: 'let' varName ('[' expression ']')? '=' expression;
+    #
     def compile_let_statement
       output << '<letStatement>'
-      consume('let')
+      consume(TokenType::LET)
       consume(TokenType::IDENTIFIER) # varName
       consume('=')
       compile_expression
@@ -128,10 +135,49 @@ module JackAnalyzer
       output << '</letStatement>'
     end
 
+    #
+    # whileStatement: 'while' '(' expression ')' '{' statements '}'
+    #
+    def compile_while_statement
+      output << '<whileStatement>'
+      consume(TokenType::WHILE)
+      consume('(')
+      compile_expression
+      consume(')')
+      consume('{')
+      compile_statements
+      consume('}')
+      output << '</whileStatement>'
+    end
+
+    #
+    # doStatement: 'do' subroutineCall ';'
+    #
+    def compile_do_statement
+      output << '<doStatement>'
+      consume(TokenType::DO)
+      compile_subroutine_call
+      consume(';')
+      output << '</doStatement>'
+    end
+
+    #
+    # returnStatement: 'return' expression? ';'
+    #
+    def compile_return_statement
+      output << '<returnStatement>'
+      consume(TokenType::RETURN)
+      compile_expression unless check?(';') # empty expression case
+      consume(';')
+      output << '</returnStatement>'
+    end
+
     # expression: term(op term)*
     def compile_expression
+      output << '<expression>'
       compile_term
-      # compile_term while match('+')
+      compile_term while match('+', '<', '/', '=', '>', '&', '|', '*')
+      output << '</expression>'
     end
 
     #
@@ -139,10 +185,21 @@ module JackAnalyzer
     # varName '[' expression ']' | subroutineCall
     #
     def compile_term
+      output << '<term>'
       return if match(TokenType::STING_CONST)
       return if match(TokenType::INT_CONST)
-      # return if match(TokenType::IDENTIFIER) # varName
+      if check?(TokenType::IDENTIFIER)
+        if lookahead(1) == '['
+          consume('[')
+          compile_expression
+          consume(']')
+        else
+          consume(TokenType::IDENTIFIER)
+        end
+        return
+      end
       compile_subroutine_call
+      output << '</term>'
     end
 
     #
@@ -164,8 +221,10 @@ module JackAnalyzer
     # expressionList: (expression (',' expression)*)?
     #
     def compile_expression_list
-      compile_expression
+      output << '<expressionList>'
+      compile_expression unless check?(')') # Emptylist
       compile_expression while match(',')
+      output << '</expressionList>'
     end
 
     #
@@ -228,8 +287,9 @@ module JackAnalyzer
     end
 
     # The one that we've yet to comsume
-    def lookahead
-      tokens[@current]
+    def lookahead(ll_index = 0)
+      retun nil if @current + ll_index >= tokens.size
+      tokens[@current + ll_index]
     end
 
     def at_end?
