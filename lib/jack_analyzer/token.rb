@@ -17,5 +17,10 @@ module JackAnalyzer
     def to_s
       "#{type} #{lexeme} #{line}:#{start_column}:#{end_column}"
     end
+
+    def to_xml
+      tag_text = literal || lexeme
+      "<#{type}>#{tag_text}</#{type}>"
+    end
   end
 end

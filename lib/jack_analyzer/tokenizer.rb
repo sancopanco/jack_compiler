@@ -43,7 +43,7 @@ module JackAnalyzer
       return symbol if TokenType.symbols.include?(c)
       return integer_constant if digit?(c)
       return string_constant if c == '"'
-      return identifer if alpha?(c)
+      return identifer_or_keyword if alpha?(c)
     end
 
     def new_token(type, literal = nil)
@@ -101,9 +101,12 @@ module JackAnalyzer
       new_token(TokenType::STING_CONST, string_literal)
     end
 
-    def identifer
+    #
+    # See if identifier is a reserved word. Otherwise, it's user-defined identifier
+    #
+    def identifer_or_keyword
       next_char while alpha_numeric?(lookahead)
-      return new_token(TokenType::KEYWORD) if TokenType.keywords.include?(token_text)
+      return new_token(TokenType::KEYWORD) if TokenType.keywords.keys.include?(token_text)
       new_token(TokenType::IDENTIFIER)
     end
 
