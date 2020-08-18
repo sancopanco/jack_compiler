@@ -229,7 +229,7 @@ module JackAnalyzer
     end
 
     # expression: term(op term)*
-    # op: '+' \ '-' | '/' | '=' | '>' | '<' | '&' | '|' | '*'
+    # op: '+' | '-' | '/' | '=' | '>' | '<' | '&' | '|' | '*'
     def compile_expression
       write_tag '<expression>'
       compile_term
@@ -257,21 +257,26 @@ module JackAnalyzer
         return
       end
       if check?(TokenType::IDENTIFIER)
-        if lookahead(1) == '[' # ArrayEntry
+        if lookahead(1).lexeme == '[' # ArrayEntry
           consume(TokenType::IDENTIFIER)
           consume('[')
           compile_expression
           consume(']')
-        elsif lookahead(1) == '.'
+        elsif lookahead(1).lexeme == '.'
           compile_subroutine_call
         else
           consume(TokenType::IDENTIFIER) # variable
         end
+        write_tag '</term>'
+        return
       end
 
       if check?('(')
+        consume('(')
         compile_expression
         consume(')')
+        write_tag '</term>'
+        return
       end
 
       if check_any?('-', '~')

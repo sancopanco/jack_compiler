@@ -70,6 +70,10 @@ module JackAnalyzer
     # Comment or slash
     # /* Standart comment */
     # /** API comment */
+    # /**
+    # * c1
+    # * c2
+    # */
     def comment
       if lookahead == '/'
         next_char
@@ -81,7 +85,7 @@ module JackAnalyzer
           next_char
         end
         next_char # *
-        next_char while lookahead != '*'
+        next_char until lookahead == '*' && lookahead(1) == '/'
         next_char # *
         next_char # /
         return

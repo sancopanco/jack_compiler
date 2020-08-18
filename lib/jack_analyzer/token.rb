@@ -19,8 +19,18 @@ module JackAnalyzer
     end
 
     def to_xml
-      tag_text = literal || lexeme
-      "<#{type}>#{tag_text}</#{type}>"
+      "<#{type}>#{get_xml_string}</#{type}>"
+    end
+
+    private
+
+    def get_xml_string
+      return literal if type == TokenType::STING_CONST || type == TokenType::INT_CONST
+      return '&lt;' if lexeme == '<'
+      return '&gt;' if lexeme == '>'
+      return '&quot' if lexeme == '"'
+      return '&amp;' if lexeme == '&'
+      lexeme
     end
   end
 end

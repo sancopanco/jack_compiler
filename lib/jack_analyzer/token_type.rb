@@ -49,7 +49,6 @@ module JackAnalyzer
     METHOD = 'method'.freeze
     FOR = 'for'.freeze
     IF = 'if'.freeze
-    NIL = 'nil'.freeze
     OR = 'or'.freeze
     RETURN = 'return'.freeze
     THIS = 'this'.freeze
@@ -79,7 +78,7 @@ module JackAnalyzer
         'constructor' => TokenType::CONSTRUCTOR,
         'for' => TokenType::FOR,
         'var' => TokenType::VAR,
-        'nil' => TokenType::NIL,
+        'null' => TokenType::NULL,
         'true' => TokenType::TRUE,
         'false' => TokenType::FALSE,
         'this' => TokenType::THIS,
