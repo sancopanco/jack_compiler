@@ -37,6 +37,6 @@ module JackAnalyzer
     tokens = tokenizer.tokenize
     # p tokens
     # puts XmlBuilder.to_xml(tokens)
-    p CompilationEngine.new(tokens).parse
+    CompilationEngine.new(tokens).parse
   end
 end

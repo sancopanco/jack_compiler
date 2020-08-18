@@ -56,7 +56,7 @@ module JackAnalyzer
     TRUE = 'true'.freeze
     VAR = 'var'.freeze
     WHILE = 'while'.freeze
-    CONSTRUCTOR = 'constuctor'.freeze
+    CONSTRUCTOR = 'constructor'.freeze
     FIELD = 'field'.freeze
     STATIC = 'static'.freeze
     INT = 'int'.freeze
