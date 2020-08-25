@@ -1,15 +1,15 @@
 
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require 'jack_analyzer/version'
+require 'jack_compiler/version'
 
 Gem::Specification.new do |spec|
-  spec.name          = 'jack_analyzer'
-  spec.version       = JackAnalyzer::VERSION
+  spec.name          = 'jack_compiler'
+  spec.version       = JackCompiler::VERSION
   spec.authors       = ['alikrgn']
   spec.email         = ['ali.sancopanco@gmail.com']
 
-  spec.summary       = 'jack analzer'
+  spec.summary       = 'jack compiler'
   spec.license       = 'MIT'
 
   # Specify which files should be added to the gem when it is released.

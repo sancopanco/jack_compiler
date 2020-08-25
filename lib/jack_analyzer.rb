@@ -14,7 +14,13 @@ module JackAnalyzer
       exit 64
     end
     if ARGV.size == 1
-      run_file(ARGV[0])
+      path = ARGV[0]
+      if File.directory?(path)
+        run_dir(ARGV[0])
+      else
+        run_file(ARGV[0])
+      end
+
     else
       run_prompt
     end
@@ -23,6 +29,12 @@ module JackAnalyzer
   def self.run_file(path)
     content = File.read(path)
     run(content)
+  end
+
+  def self.run_dir(path)
+    Dir["#{path}/*.jack"].each do |file|
+      run_file(file)
+    end
   end
 
   def self.run_prompt
