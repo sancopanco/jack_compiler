@@ -18,6 +18,6 @@ module JackCompiler
     vm_writer = VMWriter.new(output_path)
     ce = CompilationEngine.new(tokens, vm_writer)
     ce.parse
-    puts ce.symbol_table.inspect
+    puts ce.class_symbol_table.inspect
   end
 end

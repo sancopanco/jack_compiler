@@ -6,24 +6,19 @@ module JackCompiler
   # properties needed for the compilation: type, kind, and runnung index
   # Symbol tables for the jack programs has two nested scopes(class/subroutine)
   class SymbolTable
-    attr_reader :class_scope, :subroutine_scope
+    attr_reader :scope
     def initialize
-      @class_scope = {}
-      @subroutine_scope = {}
+      @scope = {}
       @index_counter = {}
     end
 
-    # Resets the subroutine index table
+    # Resets the subroutine symbol table
     def start_subroutine
-      @subroutine_scope = {}
+      self.class.new
     end
 
-    def define_in_subroutine(name, type, kind)
-      @subroutine_scope[name.to_sym] = { type: type, kind: kind, index: var_count(kind) }
-    end
-
-    def define_in_class(name, type, kind)
-      @class_scope[name.to_sym] = { type: type, kind: kind, index: var_count(kind) }
+    def define(name, type, kind)
+      @scope[name.to_sym] = { type: type, kind: kind, index: var_count(kind) }
     end
 
     # Returns the number of variables of the given kind already defined in the
@@ -38,16 +33,25 @@ module JackCompiler
 
     # Returns the index assigned to the named indentifer
     def index_of(name)
-      (@subroutine_scope[name.to_sym] || @class_scope[name.to_sym]).index
+      @scope[name.to_sym][:index]
     end
 
     # Returns the type of the named identifier in the current scope
     def type_of(name)
-      (@subroutine_scope[name.to_sym] || @class_scope[name.to_sym]).type
+      @scope[name.to_sym][:type]
     end
 
-    private
+    # Returns the kins of the named identifier(static, field, var, arg, none)
+    def kinds_of(name)
+      @scope[name.to_sym][:kind]
+    end
 
-    attr_writer :class_scope, :subroutine_scope
+    # Returns the mapped memory segement
+    def segment_of(name)
+      {
+        arg: 'argument',
+        var: 'local'
+      }[kinds_of(name).to_sym]
+    end
   end
 end

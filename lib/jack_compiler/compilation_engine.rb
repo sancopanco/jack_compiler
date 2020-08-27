@@ -6,20 +6,24 @@ module JackCompiler
   # Recursive top-down parser
   # The compilation unit is a class
   class CompilationEngine
-    attr_reader :tokens, :output, :symbol_table
+    attr_reader :tokens, :output, :class_symbol_table
     def initialize(tokens, vm_writer)
       @tokens = tokens
       @current = 0
       path = 'out.xml'
       File.delete(path) if File.exist?(path)
       @output_file = File.open(path, 'a')
-      @symbol_table = SymbolTable.new
       @current_class_name_token = nil
       @vm_writer = vm_writer
+      @label_counter = {
+        if_id: 0,
+        while_id: 0
+      }
     end
 
     def parse
       write_tag '<class>'
+      @class_symbol_table = SymbolTable.new
       compile_class
       write_tag '</class>'
       @output_file.close
@@ -55,11 +59,11 @@ module JackCompiler
       token_kind = advance if check_any?(TokenType::STATIC, TokenType::FIELD)
       token_type = compile_type
       token_name = consume(TokenType::IDENTIFIER) # varName
-      @symbol_table.define_in_class(token_name.lexeme, token_type.lexeme, token_kind.lexeme)
+      @class_symbol_table.define(token_name.lexeme, token_type.lexeme, token_kind.lexeme)
 
       while match(',') # (',' varName)*
         token_name = consume(TokenType::IDENTIFIER)
-        @symbol_table.define_in_class(token_name.lexeme, token_type.lexeme, token_kind.lexeme)
+        @class_symbol_table.define(token_name.lexeme, token_type.lexeme, token_kind.lexeme)
       end
 
       consume(';')
@@ -81,13 +85,27 @@ module JackCompiler
     # subroutineName: identifier
     def subroutine_declerations
       write_tag '<subroutineDec>'
-      match(TokenType::CONSTRUCTOR, TokenType::FUNCTION, TokenType::METHOD) # ('constructor' | 'function' | 'method')
-      if check?(TokenType::VOID)
-        advance
-      else
-        compile_type
+      @subroutine_symbol_table = @class_symbol_table.start_subroutine
+      @label_counter[:if_id] = 0
+      @label_counter[:while_id] = 0
+
+      # ('constructor' | 'function' | 'method')
+      if check_any?(TokenType::CONSTRUCTOR, TokenType::FUNCTION, TokenType::METHOD)
+        function_kind_token = advance
       end
+
+      funcion_type_token = if check?(TokenType::VOID)
+                             advance
+                           else
+                             compile_type
+                           end
+
+      if function_kind_token.lexeme == 'method'
+        @subroutine_symbol_table.define('this', funcion_type_token.lexeme, 'argument')
+      end
+
       @current_subroutine_name_token = consume(TokenType::IDENTIFIER)
+
       consume('(')
       compile_parameterlist
       consume(')')
@@ -102,7 +120,7 @@ module JackCompiler
       until check?(')')
         toke_type = compile_type
         token_name = consume(TokenType::IDENTIFIER) # varName
-        @symbol_table.define_in_subroutine(token_name.lexeme, toke_type.lexeme, 'arg')
+        @subroutine_symbol_table.define(token_name.lexeme, toke_type.lexeme, 'arg')
         break unless check?(',')
         consume(',')
       end
@@ -118,7 +136,7 @@ module JackCompiler
       # No code generation, only updates symbol table
       compile_var_declaration while check?(TokenType::VAR)
 
-      number_of_locals = @symbol_table.var_count('var')
+      number_of_locals = @subroutine_symbol_table.var_count('var')
       vm_writer.write_function("#{@current_class_name_token.lexeme}.#{@current_subroutine_name_token.lexeme}", number_of_locals)
 
       compile_statements
@@ -134,11 +152,11 @@ module JackCompiler
       consume(TokenType::VAR)
       type_token = compile_type
       name_token = consume(TokenType::IDENTIFIER)
-      @symbol_table.define_in_subroutine(name_token.lexeme, type_token.lexeme, 'var')
+      @subroutine_symbol_table.define(name_token.lexeme, type_token.lexeme, 'var')
       while check?(',')
         consume(',')
         name_token = consume(TokenType::IDENTIFIER)
-        @symbol_table.define_in_subroutine(name_token.lexeme, type_token.lexeme, 'var')
+        @subroutine_symbol_table.define(name_token.lexeme, type_token.lexeme, 'var')
         break if check?(';')
       end
       consume(';')
@@ -174,14 +192,18 @@ module JackCompiler
     def compile_let_statement
       write_tag '<letStatement>'
       consume(TokenType::LET)
-      consume(TokenType::IDENTIFIER) # varName
+      var_name_token = consume(TokenType::IDENTIFIER)
+      # Array assignment
       if check?('[')
         consume('[')
         compile_expression
         consume(']')
       end
+
       consume('=')
       compile_expression
+      @vm_writer.write_pop(@subroutine_symbol_table.segment_of(var_name_token.lexeme),
+                           @subroutine_symbol_table.index_of(var_name_token.lexeme))
       consume(';')
       write_tag '</letStatement>'
     end
@@ -192,12 +214,19 @@ module JackCompiler
     def compile_while_statement
       write_tag '<whileStatement>'
       consume(TokenType::WHILE)
+      @vm_writer.write_label("#{@current_subroutine_name_token.lexeme}$WHILE_EXP_#{@label_counter[:while_id]}")
       consume('(')
       compile_expression
       consume(')')
       consume('{')
+      @vm_writer.write_arithmetic('~')
+      @vm_writer.write_if("#{@current_subroutine_name_token.lexeme}$WHILE_END_#{@label_counter[:while_id]}")
+
       compile_statements
+      @vm_writer.write_goto("#{@current_subroutine_name_token.lexeme}$WHILE_EXP_#{@label_counter[:while_id]}")
       consume('}')
+
+      @vm_writer.write_label("#{@current_subroutine_name_token.lexeme}$WHILE_END_#{@label_counter[:while_id]}")
       write_tag '</whileStatement>'
     end
 
@@ -210,16 +239,27 @@ module JackCompiler
       consume(TokenType::IF)
       consume('(')
       compile_expression
+      @vm_writer.write_arithmetic('~')
+      @vm_writer.write_if("#{@current_subroutine_name_token.lexeme}$IF_FALSE_#{@label_counter[:if_id]}")
+
       consume(')')
       consume('{')
       compile_statements
       consume('}')
+
+      @vm_writer.write_goto("#{@current_subroutine_name_token.lexeme}$IF_TRUE_#{@label_counter[:if_id]}")
+
+      @vm_writer.write_label("#{@current_subroutine_name_token.lexeme}$IF_FALSE_#{@label_counter[:if_id]}")
+
       # Else case
       if match(TokenType::ELSE)
         consume('{')
         compile_statements
         consume('}')
       end
+
+      @vm_writer.write_label("#{@current_subroutine_name_token.lexeme}$IF_TRUE_#{@label_counter[:if_id]}")
+      @label_counter[:if_id] += 1
       write_tag '</ifStatement>'
     end
 
@@ -231,6 +271,8 @@ module JackCompiler
       consume(TokenType::DO)
       compile_subroutine_call
       consume(';')
+      # ignored the return value which is always zero
+      @vm_writer.write_pop('temp', 0)
       write_tag '</doStatement>'
     end
 
@@ -240,10 +282,15 @@ module JackCompiler
     def compile_return_statement
       write_tag '<returnStatement>'
       consume(TokenType::RETURN)
-      compile_expression unless check?(';') # empty expression case
+      if check?(';')
+        # empty expression case
+        # VM methods for void methods and functions must return the consant 0
+        @vm_writer.write_push('constant', 0)
+      else
+        compile_expression
+      end
+
       consume(';')
-      # VM methods for void methods and functions must return the consant 0
-      @vm_writer.write_push('constant', 0)
       @vm_writer.write_return
       write_tag '</returnStatement>'
     end
@@ -253,6 +300,7 @@ module JackCompiler
     def compile_expression
       write_tag '<expression>'
       compile_term
+      # exp1 op exp2
       while check_any?('+', '-', '<', '/', '=', '>', '&', '|', '*')
         op_token = advance
         compile_term
@@ -271,17 +319,30 @@ module JackCompiler
         write_tag '</term>'
         return
       end
+
+      # exp is a number
       if check?(TokenType::INT_CONST)
         write_tag '</term>'
         int_token = advance
         @vm_writer.write_push('constant', int_token.literal)
         return
       end
+
       if check_any?('true', 'false', 'null', 'this')
-        consume(TokenType::KEYWORD)
+        keyword_const_token = consume(TokenType::KEYWORD)
+
+        # true is mapped to constant -1
+        # false and null are mapped to 0
+        if keyword_const_token.lexeme == 'true'
+          @vm_writer.write_push('constant', 1)
+          @vm_writer.write_arithmetic('neg')
+        elsif keyword_const_token.lexeme == 'false' || keyword_const_token.lexeme == 'null'
+          @vm_writer.write_push('constant', 0)
+        end
         write_tag '</term>'
         return
       end
+
       if check?(TokenType::IDENTIFIER)
         if lookahead(1).lexeme == '[' # ArrayEntry
           consume(TokenType::IDENTIFIER)
@@ -291,12 +352,16 @@ module JackCompiler
         elsif lookahead(1).lexeme == '.'
           compile_subroutine_call
         else
-          consume(TokenType::IDENTIFIER) # variable
+          # exp is a variable
+          var_name_token = consume(TokenType::IDENTIFIER)
+          @vm_writer.write_push(@subroutine_symbol_table.segment_of(var_name_token.lexeme),
+                                @subroutine_symbol_table.index_of(var_name_token.lexeme))
         end
         write_tag '</term>'
         return
       end
 
+      # (exp)
       if check?('(')
         consume('(')
         compile_expression
@@ -305,9 +370,16 @@ module JackCompiler
         return
       end
 
+      # exp is op(exp1)
       if check_any?('-', '~')
-        consume(TokenType::SYMBOL)
+        unary_op_token = consume(TokenType::SYMBOL)
         compile_term
+
+        if unary_op_token.lexeme == '-'
+          @vm_writer.write_arithmetic('neg')
+        else
+          @vm_writer.write_arithmetic('not')
+        end
       end
       write_tag '</term>'
     end
@@ -349,9 +421,8 @@ module JackCompiler
         compile_expression
         number_of_args += 1
       end
-
+      # @vm_writer.write_push('')
       @vm_writer.write_call("#{subtroutine_name.lexeme}.#{class_name.lexeme}", number_of_args)
-
       write_tag '</expressionList>'
     end
 

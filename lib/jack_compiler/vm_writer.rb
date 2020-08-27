@@ -17,13 +17,20 @@ module JackCompiler
       @output.write("push #{segment} #{index}\n")
     end
 
-    def write_pop(segement, index); end
+    def write_pop(segement, index)
+      @output.write("pop #{segement} #{index} \n")
+    end
 
     #
     # command: ADD, SUB, NEG, EQ, GT, LT, AND, OR, NOT
     #
     def write_arithmetic(command)
-      vm_commands_map = { '+' => 'add', '-' => 'sub', '*' => 'call Math.multiply 2' }
+      vm_commands_map = {
+        '+' => 'add', '~' => 'not',
+        '-' => 'sub', '*' => 'call Math.multiply 2',
+        '>' => 'gt', '<' => 'lt', '&' => 'and',
+        'neg' => 'neg', 'not' => 'not', '=' => 'eq'
+      }
       @output.write("#{vm_commands_map[command]}\n")
     end
 
@@ -32,7 +39,7 @@ module JackCompiler
     # Writes a VM label command
     #
     def write_label(label)
-      @output.write("#{label} \n")
+      @output.write("label #{label}\n")
     end
 
     #
@@ -40,19 +47,29 @@ module JackCompiler
     # nargs : number of arguments
     # Writes a VM call command
     def write_call(name, nargs)
-      @output.write("call #{name} #{nargs} \n")
+      @output.write("call #{name} #{nargs}\n")
     end
 
     #
     # name: subroutine name
     # nlocal: number of local variables
     def write_function(name, nlocals)
-      @output.write("function #{name} #{nlocals} \n")
+      @output.write("function #{name} #{nlocals}\n")
     end
 
     # Writes a VM return command
     def write_return
-      @output.write("return \n")
+      @output.write("return\n")
+    end
+
+    # Writes a VM if-goto command
+    def write_if(label)
+      @output.write("if-goto #{label}\n")
+    end
+
+    # Writes a VM goto command
+    def write_goto(label)
+      @output.write("goto #{label}\n")
     end
 
     #
