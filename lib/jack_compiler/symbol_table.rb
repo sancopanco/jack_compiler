@@ -7,14 +7,15 @@ module JackCompiler
   # Symbol tables for the jack programs has two nested scopes(class/subroutine)
   class SymbolTable
     attr_reader :scope
-    def initialize
+    def initialize(enclosing = nil)
       @scope = {}
       @index_counter = {}
+      @enclosing = enclosing
     end
 
     # Resets the subroutine symbol table
     def start_subroutine
-      self.class.new
+      SymbolTable.new
     end
 
     def define(name, type, kind)
@@ -33,24 +34,29 @@ module JackCompiler
 
     # Returns the index assigned to the named indentifer
     def index_of(name)
-      @scope[name.to_sym][:index]
+      return @scope[name.to_sym][:index] if @scope[name.to_sym]
+      @enclosing.index_of(name)
     end
 
     # Returns the type of the named identifier in the current scope
     def type_of(name)
-      @scope[name.to_sym][:type]
+      return @scope[name.to_sym][:type] if @scope[name.to_sym]
+      @enclosing&.type_of(name)
     end
 
     # Returns the kins of the named identifier(static, field, var, arg, none)
     def kinds_of(name)
-      @scope[name.to_sym][:kind]
+      return @scope[name.to_sym][:kind] if @scope[name.to_sym]
+      @enclosing.kinds_of(name)
     end
 
     # Returns the mapped memory segement
     def segment_of(name)
       {
         arg: 'argument',
-        var: 'local'
+        var: 'local',
+        field: 'this',
+        static: 'static'
       }[kinds_of(name).to_sym]
     end
   end

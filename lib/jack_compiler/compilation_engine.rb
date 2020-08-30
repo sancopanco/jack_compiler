@@ -65,7 +65,6 @@ module JackCompiler
         token_name = consume(TokenType::IDENTIFIER)
         @class_symbol_table.define(token_name.lexeme, token_type.lexeme, token_kind.lexeme)
       end
-
       consume(';')
       write_tag '</classVarDec>'
     end
@@ -85,13 +84,13 @@ module JackCompiler
     # subroutineName: identifier
     def subroutine_declerations
       write_tag '<subroutineDec>'
-      @subroutine_symbol_table = @class_symbol_table.start_subroutine
+      @subroutine_symbol_table = SymbolTable.new(@class_symbol_table)
       @label_counter[:if_id] = 0
       @label_counter[:while_id] = 0
 
       # ('constructor' | 'function' | 'method')
       if check_any?(TokenType::CONSTRUCTOR, TokenType::FUNCTION, TokenType::METHOD)
-        function_kind_token = advance
+        @current_function_kind_token = advance
       end
 
       funcion_type_token = if check?(TokenType::VOID)
@@ -100,8 +99,8 @@ module JackCompiler
                              compile_type
                            end
 
-      if function_kind_token.lexeme == 'method'
-        @subroutine_symbol_table.define('this', funcion_type_token.lexeme, 'argument')
+      if @current_function_kind_token.lexeme == 'method'
+        @subroutine_symbol_table.define('this', @current_class_name_token.lexeme, 'argument')
       end
 
       @current_subroutine_name_token = consume(TokenType::IDENTIFIER)
@@ -138,6 +137,18 @@ module JackCompiler
 
       number_of_locals = @subroutine_symbol_table.var_count('var')
       vm_writer.write_function("#{@current_class_name_token.lexeme}.#{@current_subroutine_name_token.lexeme}", number_of_locals)
+
+      # Compiler generates the code necassary for allocating memory
+      # for the newly constructed object -- this = alloc(n)
+      # Sets the this pointer (pointer 0) to the base address of the memory block
+      # Compiler uses the number and type of class fields to determine how many words
+      # are neccesary the object on the host RAM
+      if @current_function_kind_token.lexeme == 'constructor'
+        number_of_fields = @class_symbol_table.var_count('field')
+        @vm_writer.write_push('argument', number_of_fields)
+        @vm_writer.write_call('Memory.alloc', 1)
+        @vm_writer.write_pop('pointer', 0) # anchors this at the base address
+      end
 
       compile_statements
       consume('}')
@@ -338,6 +349,10 @@ module JackCompiler
           @vm_writer.write_arithmetic('neg')
         elsif keyword_const_token.lexeme == 'false' || keyword_const_token.lexeme == 'null'
           @vm_writer.write_push('constant', 0)
+        elsif keyword_const_token.lexeme == 'this'
+          # return this  constructor use this
+          # pointer o contains the base address of this
+          @vm_writer.write_push('pointer', 0)
         end
         write_tag '</term>'
         return
@@ -391,16 +406,34 @@ module JackCompiler
     # varName: identifier
     # subroutineName: identifier
     def compile_subroutine_call
-      subroutine_name_token = consume(TokenType::IDENTIFIER) # subroutineName
+      # p @subroutine_symbol_table
+      class_or_var_or_subroutine_name_token = consume(TokenType::IDENTIFIER)
       if check?('(')
+        # method call on instance
+        this_type = @subroutine_symbol_table.type_of('this')
         consume('(')
-        compile_expression_list(subroutine_name_token)
+        # push this
+        compile_expression_list(this_type, class_or_var_or_subroutine_name_token.lexeme)
         consume(')')
       elsif check?('.')
+        # (className | varName)
         consume('.')
-        class_or_var_name_token = consume(TokenType::IDENTIFIER) # (className | varName)
+        subroutine_name_token = consume(TokenType::IDENTIFIER)
         consume('(')
-        compile_expression_list(subroutine_name_token, class_or_var_name_token)
+
+        obj_type = @subroutine_symbol_table.type_of(class_or_var_or_subroutine_name_token.lexeme)
+        if obj_type
+          # The object is always treated as the first implicit argument
+          # foo.bar(v1,v2,...) is translated into push foo, push v1, push v2 ... call bar
+          # foo already stored the base address of object
+          @vm_writer.write_push(@subroutine_symbol_table.segment_of(class_or_var_or_subroutine_name_token.lexeme),
+                                @subroutine_symbol_table.index_of(class_or_var_or_subroutine_name_token.lexeme))
+          compile_expression_list(obj_type, subroutine_name_token.lexeme)
+        else
+          # ClassName.methodx
+          # static methods aka functions
+          compile_expression_list(class_or_var_or_subroutine_name_token.lexeme, subroutine_name_token.lexeme)
+        end
         consume(')')
       end
     end
@@ -408,7 +441,7 @@ module JackCompiler
     #
     # expressionList: (expression (',' expression)*)?
     #
-    def compile_expression_list(subtroutine_name, class_name = nil)
+    def compile_expression_list(klass_name, subroutine_name)
       write_tag '<expressionList>'
       number_of_args = 0
 
@@ -421,8 +454,7 @@ module JackCompiler
         compile_expression
         number_of_args += 1
       end
-      # @vm_writer.write_push('')
-      @vm_writer.write_call("#{subtroutine_name.lexeme}.#{class_name.lexeme}", number_of_args)
+      @vm_writer.write_call("#{klass_name}.#{subroutine_name}", number_of_args)
       write_tag '</expressionList>'
     end
 
