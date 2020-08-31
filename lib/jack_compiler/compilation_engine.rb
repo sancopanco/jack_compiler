@@ -99,7 +99,8 @@ module JackCompiler
                              compile_type
                            end
 
-      if @current_function_kind_token.lexeme == 'method'
+      # Every method always contains this object as the first entry of its symbol table
+      if %w[method constructor].include?(@current_function_kind_token.lexeme)
         @subroutine_symbol_table.define('this', @current_class_name_token.lexeme, 'argument')
       end
 
@@ -145,9 +146,16 @@ module JackCompiler
       # are neccesary the object on the host RAM
       if @current_function_kind_token.lexeme == 'constructor'
         number_of_fields = @class_symbol_table.var_count('field')
-        @vm_writer.write_push('argument', number_of_fields)
+        @vm_writer.write_push('constant', number_of_fields)
         @vm_writer.write_call('Memory.alloc', 1)
         @vm_writer.write_pop('pointer', 0) # anchors this at the base address
+      end
+
+      # Associates this memory segment with the object on which
+      # the method is called to operate
+      if @current_function_kind_token.lexeme == 'method'
+        @vm_writer.write_push('argument', 0)
+        @vm_writer.write_pop('pointer', 0) # set THIS = argument 0
       end
 
       compile_statements
@@ -205,16 +213,29 @@ module JackCompiler
       consume(TokenType::LET)
       var_name_token = consume(TokenType::IDENTIFIER)
       # Array assignment
+      # let arr[index] = expr, *(arr+index) = expr
+      #
       if check?('[')
         consume('[')
+        @vm_writer.write_push(@subroutine_symbol_table.segment_of(var_name_token.lexeme),
+                              @subroutine_symbol_table.index_of(var_name_token.lexeme))
         compile_expression
+        @vm_writer.write_arithmetic('add')
         consume(']')
+        consume('=')
+        compile_expression
+        @vm_writer.write_pop('temp', 0)
+        @vm_writer.write_pop('pointer', 1) # Set THAT = stack.pop
+        @vm_writer.write_push('temp', 0)
+        @vm_writer.write_pop('that', 0)
+      else
+        # let varName = expr;
+        consume('=')
+        compile_expression
+        @vm_writer.write_pop(@subroutine_symbol_table.segment_of(var_name_token.lexeme),
+                             @subroutine_symbol_table.index_of(var_name_token.lexeme))
       end
 
-      consume('=')
-      compile_expression
-      @vm_writer.write_pop(@subroutine_symbol_table.segment_of(var_name_token.lexeme),
-                           @subroutine_symbol_table.index_of(var_name_token.lexeme))
       consume(';')
       write_tag '</letStatement>'
     end
@@ -326,8 +347,20 @@ module JackCompiler
     # unaryOp: '-' | '~'
     def compile_term
       write_tag '<term>'
-      if match(TokenType::STING_CONST)
+      if check?(TokenType::STING_CONST)
         write_tag '</term>'
+        string_token = advance
+        # String constants are created using the OS constructor String.new(length)
+        # String assignments like x="cc...c" are handled
+        # using a series of calls to the OS routine String . appendChar (nextChar).
+        string_literal = string_token.literal
+        lenght = string_literal.size
+        @vm_writer.write_push('constant', lenght)
+        @vm_writer.write_call('String.new', 1)
+        string_literal.chars.each do |c|
+          @vm_writer.write_push('constant', c.ord)
+          @vm_writer.write_call('String.appendChar', 2)
+        end
         return
       end
 
@@ -359,10 +392,17 @@ module JackCompiler
       end
 
       if check?(TokenType::IDENTIFIER)
-        if lookahead(1).lexeme == '[' # ArrayEntry
-          consume(TokenType::IDENTIFIER)
+        if lookahead(1).lexeme == '['
+          # Accessing an array entry
+          # varName '[' expression ']', a[i]
+          var_name_token = consume(TokenType::IDENTIFIER)
+          @vm_writer.write_push(@subroutine_symbol_table.segment_of(var_name_token.lexeme),
+                                @subroutine_symbol_table.index_of(var_name_token.lexeme))
           consume('[')
           compile_expression
+          @vm_writer.write_arithmetic('add')
+          @vm_writer.write_pop('pointer', 1) # set THAT = stack.pop()
+          @vm_writer.write_push('that', 0) # stack.push(that 0)
           consume(']')
         elsif lookahead(1).lexeme == '.'
           compile_subroutine_call
@@ -412,7 +452,8 @@ module JackCompiler
         # method call on instance
         this_type = @subroutine_symbol_table.type_of('this')
         consume('(')
-        # push this
+        @vm_writer.write_push('pointer', 0)
+        # @vm_writer.write_pop('argument', 0)
         compile_expression_list(this_type, class_or_var_or_subroutine_name_token.lexeme)
         consume(')')
       elsif check?('.')

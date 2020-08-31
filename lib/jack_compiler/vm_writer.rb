@@ -26,12 +26,12 @@ module JackCompiler
     #
     def write_arithmetic(command)
       vm_commands_map = {
-        '+' => 'add', '~' => 'not',
+        '+' => 'add', '~' => 'not', '/' => 'call Math.divide 2',
         '-' => 'sub', '*' => 'call Math.multiply 2',
         '>' => 'gt', '<' => 'lt', '&' => 'and',
         'neg' => 'neg', 'not' => 'not', '=' => 'eq'
       }
-      @output.write("#{vm_commands_map[command]}\n")
+      @output.write("#{vm_commands_map[command] || command}\n")
     end
 
     #
