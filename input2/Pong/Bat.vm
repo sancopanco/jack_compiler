@@ -101,8 +101,9 @@ pop pointer 0
 push this 4
 push constant 1
 eq
-not
-if-goto move$IF_FALSE_0
+if-goto move$IF_TRUE_0
+goto move$IF_FALSE_0
+label move$IF_TRUE_0
 push this 0
 push constant 4
 sub
@@ -110,13 +111,14 @@ pop this 0
 push this 0
 push constant 0
 lt
-not
-if-goto move$IF_FALSE_0
+if-goto move$IF_TRUE_0
+goto move$IF_FALSE_0
+label move$IF_TRUE_0
 push constant 0
 pop this 0 
-goto move$IF_TRUE_0
+goto move$IF_END_0
 label move$IF_FALSE_0
-label move$IF_TRUE_0
+label move$IF_END_0
 push constant 0
 call Screen.setColor 1
 pop temp 0 
@@ -150,7 +152,7 @@ push this 3
 add
 call Screen.drawRectangle 4
 pop temp 0 
-goto move$IF_TRUE_1
+goto move$IF_END_1
 label move$IF_FALSE_1
 push this 0
 push constant 4
@@ -161,15 +163,16 @@ push this 2
 add
 push constant 511
 gt
-not
-if-goto move$IF_FALSE_1
+if-goto move$IF_TRUE_1
+goto move$IF_FALSE_1
+label move$IF_TRUE_1
 push constant 511
 push this 2
 sub
 pop this 0 
-goto move$IF_TRUE_1
+goto move$IF_END_1
 label move$IF_FALSE_1
-label move$IF_TRUE_1
+label move$IF_END_1
 push constant 0
 call Screen.setColor 1
 pop temp 0 
@@ -203,6 +206,6 @@ push this 3
 add
 call Screen.drawRectangle 4
 pop temp 0 
-label move$IF_TRUE_2
+label move$IF_END_2
 push constant 0
 return

@@ -17,7 +17,10 @@ module JackCompiler
       @vm_writer = vm_writer
       @label_counter = {
         if_id: 0,
-        while_id: 0
+        while_id: 0,
+        if_end: 0,
+        if_false: 0,
+        if_true: 0
       }
     end
 
@@ -259,6 +262,7 @@ module JackCompiler
       consume('}')
 
       @vm_writer.write_label("#{@current_subroutine_name_token.lexeme}$WHILE_END_#{@label_counter[:while_id]}")
+      @label_counter[:while_id] += 1
       write_tag '</whileStatement>'
     end
 
@@ -271,18 +275,17 @@ module JackCompiler
       consume(TokenType::IF)
       consume('(')
       compile_expression
-      @vm_writer.write_arithmetic('~')
-      @vm_writer.write_if("#{@current_subroutine_name_token.lexeme}$IF_FALSE_#{@label_counter[:if_id]}")
 
+      # @vm_writer.write_arithmetic('~')
+      @vm_writer.write_if("#{@current_subroutine_name_token.lexeme}$IF_TRUE_#{@label_counter[:if_id]}")
+      @vm_writer.write_goto("#{@current_subroutine_name_token.lexeme}$IF_FALSE_#{@label_counter[:if_id]}")
+      @vm_writer.write_label("#{@current_subroutine_name_token.lexeme}$IF_TRUE_#{@label_counter[:if_id]}")
       consume(')')
       consume('{')
       compile_statements
       consume('}')
-
-      @vm_writer.write_goto("#{@current_subroutine_name_token.lexeme}$IF_TRUE_#{@label_counter[:if_id]}")
-
+      @vm_writer.write_goto("#{@current_subroutine_name_token.lexeme}$IF_END_#{@label_counter[:if_id]}")
       @vm_writer.write_label("#{@current_subroutine_name_token.lexeme}$IF_FALSE_#{@label_counter[:if_id]}")
-
       # Else case
       if match(TokenType::ELSE)
         consume('{')
@@ -290,7 +293,7 @@ module JackCompiler
         consume('}')
       end
 
-      @vm_writer.write_label("#{@current_subroutine_name_token.lexeme}$IF_TRUE_#{@label_counter[:if_id]}")
+      @vm_writer.write_label("#{@current_subroutine_name_token.lexeme}$IF_END_#{@label_counter[:if_id]}")
       @label_counter[:if_id] += 1
       write_tag '</ifStatement>'
     end
