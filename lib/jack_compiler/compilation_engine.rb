@@ -378,8 +378,8 @@ module JackCompiler
         # true is mapped to constant -1
         # false and null are mapped to 0
         if keyword_const_token.lexeme == 'true'
-          @vm_writer.write_push('constant', 1)
-          @vm_writer.write_arithmetic('neg')
+          @vm_writer.write_push('constant', 0)
+          @vm_writer.write_arithmetic('not')
         elsif keyword_const_token.lexeme == 'false' || keyword_const_token.lexeme == 'null'
           @vm_writer.write_push('constant', 0)
         elsif keyword_const_token.lexeme == 'this'
@@ -446,14 +446,14 @@ module JackCompiler
     # varName: identifier
     # subroutineName: identifier
     def compile_subroutine_call
-      # p @subroutine_symbol_table
       class_or_var_or_subroutine_name_token = consume(TokenType::IDENTIFIER)
+      @number_of_args = 0
       if check?('(')
         # method call on instance
         this_type = @subroutine_symbol_table.type_of('this')
         consume('(')
         @vm_writer.write_push('pointer', 0)
-        # @vm_writer.write_pop('argument', 0)
+        @number_of_args += 1
         compile_expression_list(this_type, class_or_var_or_subroutine_name_token.lexeme)
         consume(')')
       elsif check?('.')
@@ -469,6 +469,7 @@ module JackCompiler
           # foo already stored the base address of object
           @vm_writer.write_push(@subroutine_symbol_table.segment_of(class_or_var_or_subroutine_name_token.lexeme),
                                 @subroutine_symbol_table.index_of(class_or_var_or_subroutine_name_token.lexeme))
+          @number_of_args += 1
           compile_expression_list(obj_type, subroutine_name_token.lexeme)
         else
           # ClassName.methodx
@@ -484,18 +485,17 @@ module JackCompiler
     #
     def compile_expression_list(klass_name, subroutine_name)
       write_tag '<expressionList>'
-      number_of_args = 0
 
       unless check?(')') # Emptylist
         compile_expression
-        number_of_args += 1
+        @number_of_args += 1
       end
 
       while match(',')
         compile_expression
-        number_of_args += 1
+        @number_of_args += 1
       end
-      @vm_writer.write_call("#{klass_name}.#{subroutine_name}", number_of_args)
+      @vm_writer.write_call("#{klass_name}.#{subroutine_name}", @number_of_args)
       write_tag '</expressionList>'
     end
 

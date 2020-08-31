@@ -28,7 +28,7 @@ module JackCompiler
       vm_commands_map = {
         '+' => 'add', '~' => 'not', '/' => 'call Math.divide 2',
         '-' => 'sub', '*' => 'call Math.multiply 2',
-        '>' => 'gt', '<' => 'lt', '&' => 'and',
+        '>' => 'gt', '<' => 'lt', '&' => 'and', '|' => 'or',
         'neg' => 'neg', 'not' => 'not', '=' => 'eq'
       }
       @output.write("#{vm_commands_map[command] || command}\n")
